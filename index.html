@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThermaGuard // Real-Time Phone Temperature Monitor</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background Animated Glows -->
+    <div class="glow-bg">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+    </div>
+
+    <!-- Thermal Throttling Alert Overlay -->
+    <div class="critical-overlay" id="criticalOverlay"></div>
+
+    <div class="app-container">
+        <!-- Sidebar / Header Area -->
+        <header class="sidebar">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i data-lucide="thermometer-snowflake"></i>
+                </div>
+                <div>
+                    <h1>ThermaGuard</h1>
+                    <span class="version">v1.2.0 Active</span>
+                </div>
+            </div>
+
+            <!-- Connection Status Card -->
+            <div class="glass-card status-card">
+                <div class="card-header">
+                    <span class="card-title">Connection Status</span>
+                    <span class="status-dot pulse" id="statusDot"></span>
+                </div>
+                <div class="connection-details">
+                    <div class="status-info">
+                        <span class="label">Current Source</span>
+                        <strong id="connectionSource">Simulated</strong>
+                    </div>
+                    <div class="status-info">
+                        <span class="label">Device Name</span>
+                        <strong id="deviceName">Mock Android Device</strong>
+                    </div>
+                    <div class="status-info" id="adbStatusWrapper">
+                        <span class="label">ADB Link</span>
+                        <span class="adb-badge badge-warning" id="adbBadge">SEARCHING</span>
+                    </div>
+                </div>
+                <button class="btn btn-secondary btn-sm" id="btnAdbGuide">
+                    <i data-lucide="help-circle"></i> Setup Real Phone
+                </button>
+            </div>
+
+            <!-- Navigation Quick Info -->
+            <div class="glass-card info-card">
+                <h3>Live Diagnostics</h3>
+                <p>System reads real battery thermal sensors (via ADB `dumpsys battery`) and CPU hardware zones when connected. Falls back to simulator if offline.</p>
+                <div class="system-time">
+                    <i data-lucide="clock"></i>
+                    <span id="currentTime">--:--:--</span>
+                </div>
+            </div>
+
+            <!-- Floating Widget Launcher -->
+            <div class="glass-card info-card widget-control-box">
+                <h3>Floating Widget</h3>
+                <p>Collapse the full dashboard into a custom draggable home-screen widget overlay.</p>
+                <button class="btn btn-primary btn-block" id="btnLaunchWidget">
+                    <i data-lucide="layers"></i> Enable Widget Mode
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Content -->
+        <main class="main-content">
+            <!-- Alert Banner (Hidden by default) -->
+            <div class="alert-banner warning" id="alertBanner" style="display: none;">
+                <div class="alert-content">
+                    <i data-lucide="alert-triangle"></i>
+                    <div>
+                        <strong id="alertTitle">Thermal Throttling Active!</strong>
+                        <p id="alertMsg">Device temperature has exceeded critical limits. Reducing workload recommended.</p>
+                    </div>
+                </div>
+                <button class="alert-close" onclick="this.parentElement.style.display='none'">&times;</button>
+            </div>
+
+            <!-- Grid 1: Key Temperature Gauges -->
+            <section class="dashboard-grid grid-2-col">
+                <!-- Battery Temp Gauge -->
+                <div class="glass-card gauge-card" id="batteryCard">
+                    <div class="card-glow" id="batteryGlow"></div>
+                    <span class="card-tag">Sensor 01</span>
+                    <h2>Battery Temperature</h2>
+                    <div class="gauge-wrapper">
+                        <svg class="gauge-svg" viewBox="0 0 200 200">
+                            <circle class="gauge-bg" cx="100" cy="100" r="80"></circle>
+                            <circle class="gauge-progress" id="batteryProgress" cx="100" cy="100" r="80" stroke-dasharray="502" stroke-dashoffset="502"></circle>
+                        </svg>
+                        <div class="gauge-value-container">
+                            <span class="gauge-num" id="batteryTempText">--.-</span>
+                            <span class="gauge-unit">°C</span>
+                            <span class="gauge-status" id="batteryStatusLabel">NORMAL</span>
+                        </div>
+                    </div>
+                    <div class="gauge-footer">
+                        <span>Range: 0°C - 60°C</span>
+                        <span id="batteryFahrenheit">--°F</span>
+                    </div>
+                </div>
+
+                <!-- CPU Temp Gauge -->
+                <div class="glass-card gauge-card" id="cpuCard">
+                    <div class="card-glow" id="cpuGlow"></div>
+                    <span class="card-tag">Sensor 02</span>
+                    <h2>CPU Core Temperature</h2>
+                    <div class="gauge-wrapper">
+                        <svg class="gauge-svg" viewBox="0 0 200 200">
+                            <circle class="gauge-bg" cx="100" cy="100" r="80"></circle>
+                            <circle class="gauge-progress" id="cpuProgress" cx="100" cy="100" r="80" stroke-dasharray="502" stroke-dashoffset="502"></circle>
+                        </svg>
+                        <div class="gauge-value-container">
+                            <span class="gauge-num" id="cpuTempText">--.-</span>
+                            <span class="gauge-unit">°C</span>
+                            <span class="gauge-status" id="cpuStatusLabel">NORMAL</span>
+                        </div>
+                    </div>
+                    <div class="gauge-footer">
+                        <span>Range: 0°C - 100°C</span>
+                        <span id="cpuFahrenheit">--°F</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Grid 2: Stats Grid -->
+            <section class="dashboard-grid grid-4-col">
+                <!-- Battery Level -->
+                <div class="glass-card stat-mini-card">
+                    <div class="stat-icon icon-blue">
+                        <i data-lucide="battery"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Battery Charge</span>
+                        <strong class="stat-value" id="batteryLevelText">--%</strong>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="batteryLevelBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Voltage -->
+                <div class="glass-card stat-mini-card">
+                    <div class="stat-icon icon-yellow">
+                        <i data-lucide="zap"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Voltage</span>
+                        <strong class="stat-value" id="voltageText">-.-- V</strong>
+                        <span class="stat-subtext" id="voltageStatus">Optimal</span>
+                    </div>
+                </div>
+
+                <!-- Charging State -->
+                <div class="glass-card stat-mini-card">
+                    <div class="stat-icon icon-green" id="chargeIconWrapper">
+                        <i data-lucide="plug" id="chargeIcon"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Power Source</span>
+                        <strong class="stat-value" id="chargingStatusText">--</strong>
+                        <span class="stat-subtext" id="chargeRate">Adaptive</span>
+                    </div>
+                </div>
+
+                <!-- Battery Health -->
+                <div class="glass-card stat-mini-card">
+                    <div class="stat-icon icon-purple">
+                        <i data-lucide="heart-pulse"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Battery Health</span>
+                        <strong class="stat-value" id="batteryHealthText">--</strong>
+                        <span class="stat-subtext" id="healthThrottling">No Wear</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Grid 3: Chart and Control/Simulator Panel -->
+            <section class="dashboard-grid grid-2-col-unbalanced">
+                <!-- Real-time Chart -->
+                <div class="glass-card chart-card">
+                    <div class="card-header">
+                        <h2>Thermal Trend History</h2>
+                        <span class="chart-legend">
+                            <span class="legend-item"><span class="legend-color color-battery"></span> Battery</span>
+                            <span class="legend-item"><span class="legend-color color-cpu"></span> CPU</span>
+                        </span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="tempChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Simulation & Environmental Controls -->
+                <div class="glass-card control-card">
+                    <h2>Workload Simulator</h2>
+                    <p class="section-desc">Force state simulations to observe thermodynamic heat generation curves and triggers.</p>
+                    
+                    <div class="simulator-presets">
+                        <button class="preset-btn active" data-preset="idle">
+                            <i data-lucide="coffee"></i>
+                            <span>Idle State</span>
+                        </button>
+                        <button class="preset-btn" data-preset="browsing">
+                            <i data-lucide="chrome"></i>
+                            <span>Social Browsing</span>
+                        </button>
+                        <button class="preset-btn" data-preset="charging">
+                            <i data-lucide="zap"></i>
+                            <span>Fast Charging</span>
+                        </button>
+                        <button class="preset-btn" data-preset="gaming">
+                            <i data-lucide="gamepad-2"></i>
+                            <span>Heavy Gaming</span>
+                        </button>
+                        <button class="preset-btn" data-preset="video">
+                            <i data-lucide="video"></i>
+                            <span>4K Recording</span>
+                        </button>
+                        <button class="preset-btn" data-preset="throttling">
+                            <i data-lucide="flame"></i>
+                            <span>Thermal Test</span>
+                        </button>
+                    </div>
+
+                    <div class="manual-slider-group">
+                        <div class="slider-header">
+                            <span>Manual Temp Override</span>
+                            <strong id="sliderValueText">Off (SSE Active)</strong>
+                        </div>
+                        <input type="range" min="20" max="65" value="35" class="custom-slider" id="tempOverrideSlider">
+                        <div class="slider-footer">
+                            <span>20°C</span>
+                            <span>Normal (30°C - 38°C)</span>
+                            <span>65°C</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Grid 4: Action/Advice Center -->
+            <section class="dashboard-grid grid-2-col">
+                <!-- Cooling Advice -->
+                <div class="glass-card advice-card">
+                    <h2>Thermal Cooling Assistant</h2>
+                    <div class="advice-content" id="adviceContainer">
+                        <!-- Filled by Javascript -->
+                        <div class="advice-item loading">
+                            <i data-lucide="refresh-cw" class="spin"></i>
+                            <p>Analyzing thermal profiles...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Logs -->
+                <div class="glass-card log-card">
+                    <div class="card-header">
+                        <h2>Thermodynamic Event Log</h2>
+                        <button class="btn btn-text btn-sm" id="btnClearLogs">Clear</button>
+                    </div>
+                    <div class="log-console" id="logConsole">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Floating Widget Container -->
+    <div class="floating-widget glass-card widget-theme-glass widget-size-2x1" id="floatingWidget" style="display: none;">
+        <div class="widget-header" id="widgetHeader">
+            <span class="widget-title"><i data-lucide="layout-grid"></i> ThermaWidget</span>
+            <div class="widget-controls">
+                <button class="widget-btn" id="btnWidgetSize" title="Toggle Size"><i data-lucide="maximize-2"></i></button>
+                <button class="widget-btn" id="btnWidgetStyle" title="Change Theme"><i data-lucide="palette"></i></button>
+                <button class="widget-btn" id="btnWidgetExpand" title="Restore Dashboard"><i data-lucide="expand"></i></button>
+            </div>
+        </div>
+        <div class="widget-body">
+            <!-- 1x1 Content -->
+            <div class="widget-content" id="widgetContent1x1">
+                <div class="widget-temp-bubble">
+                    <span class="widget-temp" id="widgetTemp1x1">--.-</span><span class="widget-deg">°C</span>
+                </div>
+                <div class="widget-status-row">
+                    <span class="widget-dot pulse" id="widgetDot1x1"></span>
+                    <span class="widget-status" id="widgetLabel1x1">NORMAL</span>
+                </div>
+            </div>
+            
+            <!-- 2x1 Content (Default) -->
+            <div class="widget-content size-active" id="widgetContent2x1">
+                <div class="widget-split-row">
+                    <div class="widget-split-item">
+                        <span class="widget-split-label">BATTERY</span>
+                        <div class="widget-split-val">
+                            <span id="widgetBatTemp2x1">--.-</span><span class="unit">°C</span>
+                        </div>
+                    </div>
+                    <div class="widget-split-item">
+                        <span class="widget-split-label">CPU CORE</span>
+                        <div class="widget-split-val">
+                            <span id="widgetCpuTemp2x1">--.-</span><span class="unit">°C</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="widget-bar-row">
+                    <i data-lucide="battery" class="widget-icon-small"></i>
+                    <span id="widgetLevel2x1">--%</span>
+                    <span class="widget-charge-state" id="widgetCharge2x1">Discharging</span>
+                </div>
+            </div>
+
+            <!-- 2x2 Content -->
+            <div class="widget-content" id="widgetContent2x2">
+                <div class="widget-grid-top">
+                    <div class="widget-main-temp">
+                        <strong id="widgetTemp2x2">--.-</strong><span class="unit">°C</span>
+                        <span class="widget-sub-label">Battery</span>
+                    </div>
+                    <div class="widget-main-cpu">
+                        <strong id="widgetCpu2x2">--.-</strong><span class="unit">°C</span>
+                        <span class="widget-sub-label">CPU Core</span>
+                    </div>
+                </div>
+                <!-- Sparkline Canvas -->
+                <div class="widget-sparkline-container">
+                    <canvas id="widgetSparkline"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="widget-footer-drag" id="widgetFooterDrag">
+            <i data-lucide="grip-horizontal"></i> Drag to position
+        </div>
+    </div>
+
+    <!-- ADB Guide / Widget Modal Overlay -->
+    <div class="modal-overlay" id="adbModal">
+        <div class="glass-card modal-content">
+            <div class="modal-header">
+                <h2><i data-lucide="smartphone"></i> Device Connectivity & Widget Setup</h2>
+                <button class="modal-close" id="btnCloseModal">&times;</button>
+            </div>
+            
+            <!-- Modal Tabs -->
+            <div class="modal-tabs">
+                <button class="modal-tab-btn active" id="btnTabAdb">ADB USB Link</button>
+                <button class="modal-tab-btn" id="btnTabWidget">Android Home Widget</button>
+            </div>
+
+            <!-- Tab 1 Content (ADB Guide) -->
+            <div class="modal-section active" id="secAdbGuide">
+                <ol class="setup-steps">
+                    <li>
+                        <strong>Enable USB Debugging</strong>
+                        <p>Go to your phone's <em>Settings &gt; About Phone</em> and tap <strong>Build Number</strong> 7 times. Then go to <em>System &gt; Developer Options</em> and toggle <strong>USB Debugging</strong> ON.</p>
+                    </li>
+                    <li>
+                        <strong>Connect to PC</strong>
+                        <p>Connect your phone to your PC via a USB cable. Make sure the USB mode is set to "File Transfer" or "MIDI".</p>
+                    </li>
+                    <li>
+                        <strong>Allow USB Debugging Dialog</strong>
+                        <p>Unlock your phone screen. A popup will ask: <em>"Allow USB debugging?"</em>. Check <strong>"Always allow from this computer"</strong> and tap <strong>Allow</strong>.</p>
+                    </li>
+                    <li>
+                        <strong>Start ThermaGuard Server</strong>
+                        <p>Ensure the Python server script is running. It will automatically detect your phone using <code>adb</code> and stream live hardware temperatures!</p>
+                    </li>
+                </ol>
+                <div class="modal-tip">
+                    <i data-lucide="info"></i>
+                    <span><strong>Pro Tip:</strong> You can also connect wirelessly! Enable "Wireless Debugging" in Developer Options, and run <code>adb connect &lt;phone-ip&gt;:&lt;port&gt;</code> in your terminal.</span>
+                </div>
+            </div>
+
+            <!-- Tab 2 Content (Android Widget Guide) -->
+            <div class="modal-section" id="secWidgetGuide">
+                <p class="section-desc">Since standard mobile browsers cannot place web pages directly as widgets natively, follow these steps to place the live monitor directly on your Android home screen using a Web Widget container:</p>
+                <ol class="setup-steps">
+                    <li>
+                        <strong>Download a Web Widget App</strong>
+                        <p>Go to the Google Play Store on your phone and install a free web widget app (e.g., <strong>Web Widget</strong> by lowlevel or <strong>Widgetizer</strong>).</p>
+                    </li>
+                    <li>
+                        <strong>Connect to the Same Wi-Fi Network</strong>
+                        <p>Ensure your phone and the monitoring PC are connected to the exact same Wi-Fi router network.</p>
+                    </li>
+                    <li>
+                        <strong>Get your PC's IP Address</strong>
+                        <p>Open a terminal on your PC and run <code>ipconfig</code> (Windows) or <code>ifconfig</code> (Linux/Mac) to find your local IP address (e.g., <code>192.168.1.104</code>).</p>
+                    </li>
+                    <li>
+                        <strong>Configure the Widget URL</strong>
+                        <p>Add the widget element to your home screen. Open its settings and set the target source URL to:<br>
+                        <code style="color: var(--color-cool); font-family: var(--font-mono); font-size: 0.8rem; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px;">http://&lt;your-pc-ip&gt;:8000/widget.html</code></p>
+                    </li>
+                </ol>
+                <div class="modal-tip">
+                    <i data-lucide="sparkles"></i>
+                    <span><strong>Seamless Look:</strong> The widget features a transparent background, matching colors, and real-time auto-updating via SSE, blending directly with your background launcher!</span>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="btnModalOk">Got It</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
